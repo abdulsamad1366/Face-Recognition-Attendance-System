@@ -2,6 +2,7 @@ import cv2
 import os
 import time
 from datetime import datetime
+import numpy as np
 import face_recognition
 import face_engine
 from liveness import BlinkDetector, get_frame_ear
@@ -56,16 +57,41 @@ class CameraStreamManager:
         known_encodings, known_names = face_engine.load_known_encodings()
 
         while True:
+            # Fetch active class session from database (Layer 1 Security)
+            active_session = database.get_active_session()
+            session_id = active_session["id"] if active_session else None
+
+            # IF NO ACTIVE SESSION: Release physical camera and yield CAMERA OFF frame
+            if not active_session:
+                self.release_camera()
+
+                placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
+                # Draw dark background card
+                cv2.rectangle(placeholder, (40, 40), (600, 440), (30, 41, 59), cv2.FILLED)
+                cv2.rectangle(placeholder, (40, 40), (600, 440), (71, 85, 105), 2)
+
+                cv2.putText(placeholder, "CAMERA OFF", (230, 200),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+                cv2.putText(placeholder, "No Active Attendance Session", (155, 250),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
+                cv2.putText(placeholder, "Start a class session to turn camera ON", (150, 290),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (148, 163, 184), 1)
+
+                ret, buffer = cv2.imencode('.jpg', placeholder)
+                if ret:
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                time.sleep(0.5)
+                continue
+
+            # ACTIVE SESSION IS RUNNING: Get camera and read frames
+            cap = self.get_camera()
             success, frame = cap.read()
             if not success or frame is None:
                 time.sleep(0.03)
                 continue
 
             try:
-                # Fetch active class session from database (Layer 1 Security)
-                active_session = database.get_active_session()
-                session_id = active_session["id"] if active_session else None
-
                 # Resize frame to 0.25x for speed
                 small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
                 rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
@@ -132,12 +158,8 @@ class CameraStreamManager:
                                 cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 0, 0) if box_color == (0, 255, 255) else (255, 255, 255), 1)
 
                 # Draw Active Session Banner on Video Feed
-                if active_session:
-                    banner_text = f"ACTIVE SESSION: {active_session['class_name']}"
-                    cv2.putText(frame, banner_text, (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                else:
-                    banner_text = "NO ACTIVE SESSION (Attendance Logging Paused)"
-                    cv2.putText(frame, banner_text, (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                banner_text = f"ACTIVE SESSION: {active_session['class_name']}"
+                cv2.putText(frame, banner_text, (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
             except Exception as e:
                 print(f"[STREAM RECOGNITION WARNING] Frame error: {e}")

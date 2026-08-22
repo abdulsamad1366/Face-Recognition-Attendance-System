@@ -101,7 +101,8 @@ def session_control():
             flash(f"New attendance session started for '{class_name}'!", "success")
         elif action == "stop":
             database.close_active_session()
-            flash("Active attendance session stopped.", "info")
+            stream_manager.release_camera()
+            flash("Active attendance session stopped and camera turned OFF.", "info")
         return redirect(url_for("session_control"))
 
     active_session = database.get_active_session()
