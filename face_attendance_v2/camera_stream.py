@@ -5,7 +5,7 @@ from datetime import datetime
 import numpy as np
 import face_recognition
 import face_engine
-from liveness import BlinkDetector, get_frame_ear
+from liveness import AdvancedLivenessSession, detect_screen_replay
 import database
 
 BASE_DIR = os.path.dirname(__file__)
@@ -15,8 +15,8 @@ os.makedirs(SNAPSHOT_DIR, exist_ok=True)
 class CameraStreamManager:
     def __init__(self):
         self.camera = None
-        self.blink_detector = BlinkDetector(ear_threshold=0.22, min_consec_frames=1, reset_timeout=5.0)
-        self.last_attempt_log_time = {}  # Throttle attempt logging per face (e.g. max once per 2 seconds)
+        self.challenge_sessions = {}  # key: tracking_id -> AdvancedLivenessSession
+        self.last_attempt_log_time = {}
 
     def get_camera(self):
         if self.camera is None or not self.camera.isOpened():
@@ -34,7 +34,6 @@ class CameraStreamManager:
                     print(f"[CAMERA WARNING] Failed index {idx}: {e}")
 
             if self.camera is None or not self.camera.isOpened():
-                # Fallback to standard VideoCapture
                 self.camera = cv2.VideoCapture(0)
         return self.camera
 
@@ -42,6 +41,7 @@ class CameraStreamManager:
         if self.camera is not None:
             self.camera.release()
             self.camera = None
+            self.challenge_sessions.clear()
 
     def save_snapshot(self, frame, result_label):
         """Saves a frame snapshot for the audit trail log."""
@@ -52,8 +52,7 @@ class CameraStreamManager:
         return f"snapshots/{filename}"
 
     def generate_frames(self):
-        """MJPEG Live stream generator yielding encoded JPEG frames."""
-        cap = self.get_camera()
+        """MJPEG Live stream generator with Photometric Screen-Flash & Neutral-Reset Liveness."""
         known_encodings, known_names = face_engine.load_known_encodings()
 
         while True:
@@ -66,7 +65,6 @@ class CameraStreamManager:
                 self.release_camera()
 
                 placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
-                # Draw dark background card
                 cv2.rectangle(placeholder, (40, 40), (600, 440), (30, 41, 59), cv2.FILLED)
                 cv2.rectangle(placeholder, (40, 40), (600, 440), (71, 85, 105), 2)
 
@@ -104,25 +102,47 @@ class CameraStreamManager:
                 for face_loc, face_enc in zip(face_locations, face_encodings):
                     # 1. Match Face Against Known Encodings
                     matched_name, distance = face_engine.match_face(face_enc, known_encodings, known_names, threshold=0.5)
+                    tracking_id = matched_name if matched_name else f"unknown_{face_loc[0]}_{face_loc[1]}"
 
-                    # 2. Check Liveness (Layer 2 Security - Blink EAR Check)
-                    ear_val = get_frame_ear(rgb_small_frame, face_loc)
-                    tracking_id = matched_name if matched_name else "unknown_face"
-                    is_live, liveness_msg = self.blink_detector.check_liveness(tracking_id, ear_val)
+                    is_live = False
+                    status_text = "Unknown Face"
+                    box_color = (0, 0, 255)  # Red
+                    attempt_result = "unknown"
 
-                    # Determine Display Attributes & Security Logic
-                    if matched_name and is_live:
-                        box_color = (0, 255, 0)  # Green
-                        status_text = f"{matched_name} (Verified)"
-                        attempt_result = "matched"
-                    elif matched_name and not is_live:
-                        box_color = (0, 255, 255)  # Yellow
-                        status_text = f"{matched_name} (Blink to Verify)"
-                        attempt_result = "liveness_fail"
-                    else:
-                        box_color = (0, 0, 255)  # Red
-                        status_text = "Unknown Face"
-                        attempt_result = "unknown"
+                    if matched_name:
+                        # Fetch or initialize active AdvancedLivenessSession
+                        if tracking_id not in self.challenge_sessions:
+                            self.challenge_sessions[tracking_id] = AdvancedLivenessSession(time_limit_per_step=6.0)
+
+                        session_obj = self.challenge_sessions[tracking_id]
+                        eval_res = session_obj.evaluate_frame(frame, face_loc, rgb_small_frame)
+                        c_status = eval_res["status"]
+                        c_prompt = eval_res["prompt"]
+
+                        if c_status == "passed":
+                            box_color = (0, 255, 0)  # Green
+                            status_text = f"{matched_name} (Verified & Logged)"
+                            attempt_result = "matched"
+                            is_live = True
+                        elif c_status == "pending":
+                            box_color = (0, 255, 255)  # Yellow
+                            status_text = f"{matched_name} | {c_prompt}"
+                            attempt_result = "liveness_in_progress"
+                            is_live = False
+                        elif c_status == "failed":
+                            box_color = (0, 0, 255)  # Red
+                            fail_reason = eval_res.get("failure_reason", "failed")
+                            if fail_reason == "screen_detected":
+                                status_text = "ALERT: Screen Replay Attack Detected!"
+                                attempt_result = "liveness_fail_screen"
+                            else:
+                                status_text = "Liveness Challenge Failed (Timeout)"
+                                attempt_result = "liveness_fail_timeout"
+                            is_live = False
+
+                            # Reset failed session after 3 seconds so user can retry
+                            if (now_time - session_obj.stage_start_time) > 3.0:
+                                del self.challenge_sessions[tracking_id]
 
                     # Lookup Student Record if Matched
                     student_id = None
@@ -131,13 +151,13 @@ class CameraStreamManager:
                         if student_rec:
                             student_id = student_rec["id"]
 
-                    # Log Attendance if Session Active + Matched + Live (DB UNIQUE constraint prevents duplicates)
+                    # Log Attendance if Session Active + Matched + All Liveness Stages Passed
                     if matched_name and is_live and active_session and student_id:
                         database.log_attendance(student_id, session_id)
 
-                    # 3. Log Attempt to Audit Trail (Layer 3 Security - throttled once per 3 sec per tracking_id)
+                    # Log Attempt to Audit Trail (Layer 3 Security - throttled to 1 log per 3 sec)
                     last_log = self.last_attempt_log_time.get(tracking_id, 0)
-                    if (now_time - last_log) >= 3.0:
+                    if (now_time - last_log) >= 3.0 and attempt_result != "liveness_in_progress":
                         snapshot_path = self.save_snapshot(frame, attempt_result)
                         database.log_attempt(
                             session_id=session_id,
@@ -153,9 +173,12 @@ class CameraStreamManager:
 
                     # Draw Bounding Box & Label Overlay
                     cv2.rectangle(frame, (left, top), (right, bottom), box_color, 2)
-                    cv2.rectangle(frame, (left, bottom - 35), (right, bottom), box_color, cv2.FILLED)
-                    cv2.putText(frame, status_text, (left + 6, bottom - 8),
-                                cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 0, 0) if box_color == (0, 255, 255) else (255, 255, 255), 1)
+
+                    # Draw text banner
+                    (tw, th), _ = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_DUPLEX, 0.55, 1)
+                    cv2.rectangle(frame, (left, bottom - 30), (left + tw + 10, bottom), box_color, cv2.FILLED)
+                    cv2.putText(frame, status_text, (left + 5, bottom - 8),
+                                cv2.FONT_HERSHEY_DUPLEX, 0.55, (0, 0, 0) if box_color == (0, 255, 255) else (255, 255, 255), 1)
 
                 # Draw Active Session Banner on Video Feed
                 banner_text = f"ACTIVE SESSION: {active_session['class_name']}"
