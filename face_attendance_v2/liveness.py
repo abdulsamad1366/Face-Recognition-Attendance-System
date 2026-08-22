@@ -121,19 +121,25 @@ ACTION_PROMPTS = {
 
 class SingleTaskLivenessSession:
     """
-    Single Unique Randomized Liveness Task per Face:
-    Assigns ONE unique prompt (turn_head, open_mouth, blink) per face with instant verification upon completion.
+    Independent Unique Randomized Liveness Task per Person:
+    Seeded specifically per student so each person receives their own distinct task.
+    Attendance is logged strictly for the individual student who completes their assigned task.
     """
-    def __init__(self, time_limit=8.0):
+    def __init__(self, tracking_id="student", time_limit=8.0):
+        self.tracking_id = tracking_id
         self.time_limit = time_limit
-        self.target_task = random.choice(["turn_head", "open_mouth", "blink"])
+        
+        # Seed pseudo-random generator with person tracking_id to guarantee unique tasks per student
+        rng = random.Random(hash(tracking_id + str(time.time())))
+        self.target_task = rng.choice(["turn_head", "open_mouth", "blink"])
+        
         self.start_time = time.time()
         self.status = "pending"
         self.failure_reason = None
         self.consec_closed = 0
         self.ear_threshold = 0.22
 
-    def evaluate_frame(self, frame, face_loc, rgb_small_frame):
+    def evaluate_frame(self, frame, face_loc, rgb_frame):
         now = time.time()
         elapsed = now - self.start_time
         time_remaining = max(0.0, self.time_limit - elapsed)
@@ -143,6 +149,7 @@ class SingleTaskLivenessSession:
                 "status": self.status,
                 "failure_reason": self.failure_reason,
                 "prompt": "Liveness Verified & Logged!" if self.status == "passed" else f"Security Fail: {self.failure_reason}",
+                "target_task": self.target_task,
                 "time_remaining": 0.0
             }
 
@@ -155,6 +162,7 @@ class SingleTaskLivenessSession:
                 "status": "failed",
                 "failure_reason": "screen_detected",
                 "prompt": "ALERT: Screen Replay Attack Detected!",
+                "target_task": self.target_task,
                 "time_remaining": 0.0
             }
 
@@ -166,14 +174,20 @@ class SingleTaskLivenessSession:
                 "status": "failed",
                 "failure_reason": "timeout",
                 "prompt": "Liveness Task Timed Out",
+                "target_task": self.target_task,
                 "time_remaining": 0.0
             }
 
         # 3. Extract Landmarks & Check Task Action
-        landmarks_list = face_recognition.face_landmarks(rgb_small_frame, [face_loc])
+        landmarks_list = face_recognition.face_landmarks(rgb_frame, [face_loc])
         if not landmarks_list:
             prompt_text = f"{ACTION_PROMPTS[self.target_task]} ({round(time_remaining, 1)}s)"
-            return {"status": "pending", "prompt": prompt_text, "time_remaining": round(time_remaining, 1)}
+            return {
+                "status": "pending",
+                "prompt": prompt_text,
+                "target_task": self.target_task,
+                "time_remaining": round(time_remaining, 1)
+            }
 
         landmarks = landmarks_list[0]
         yaw_ratio, pitch_ratio = compute_head_ratios(landmarks)
@@ -200,11 +214,16 @@ class SingleTaskLivenessSession:
             return {
                 "status": "passed",
                 "prompt": "Liveness Verified & Logged!",
+                "target_task": self.target_task,
                 "time_remaining": 0.0
             }
 
         prompt_text = f"{ACTION_PROMPTS[self.target_task]} ({round(time_remaining, 1)}s)"
-        return {"status": "pending", "prompt": prompt_text, "time_remaining": round(time_remaining, 1)}
+        return {
+            "status": "pending",
+            "prompt": prompt_text,
+            "target_task": self.target_task,
+            "time_remaining": round(time_remaining, 1)
+        }
 
-# Alias for backwards compatibility
 AdvancedLivenessSession = SingleTaskLivenessSession

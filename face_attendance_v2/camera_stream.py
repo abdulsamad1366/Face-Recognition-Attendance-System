@@ -5,7 +5,7 @@ from datetime import datetime
 import numpy as np
 import face_recognition
 import face_engine
-from liveness import AdvancedLivenessSession, detect_screen_replay
+from liveness import SingleTaskLivenessSession, detect_screen_replay
 import database
 
 BASE_DIR = os.path.dirname(__file__)
@@ -15,7 +15,7 @@ os.makedirs(SNAPSHOT_DIR, exist_ok=True)
 class CameraStreamManager:
     def __init__(self):
         self.camera = None
-        self.challenge_sessions = {}  # key: tracking_id -> AdvancedLivenessSession
+        self.challenge_sessions = {}  # key: tracking_id -> SingleTaskLivenessSession
         self.last_attempt_log_time = {}
 
     def get_camera(self):
@@ -52,7 +52,7 @@ class CameraStreamManager:
         return f"snapshots/{filename}"
 
     def generate_frames(self):
-        """MJPEG Live stream generator with Photometric Screen-Flash & Neutral-Reset Liveness."""
+        """MJPEG Live stream generator with Independent Per-Person Unique Liveness Tasks."""
         known_encodings, known_names = face_engine.load_known_encodings()
 
         while True:
@@ -90,12 +90,11 @@ class CameraStreamManager:
                 continue
 
             try:
-                # Resize frame to 0.25x for speed
-                small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
-                rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+                # Convert full-resolution unscaled camera frame (1280x720) to BGR -> RGB
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-                face_locations = face_recognition.face_locations(rgb_small_frame)
-                face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+                face_locations = face_recognition.face_locations(rgb_frame)
+                face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
                 now_time = time.time()
 
@@ -110,12 +109,12 @@ class CameraStreamManager:
                     attempt_result = "unknown"
 
                     if matched_name:
-                        # Fetch or initialize active AdvancedLivenessSession
+                        # Fetch or initialize independent SingleTaskLivenessSession per tracking_id
                         if tracking_id not in self.challenge_sessions:
-                            self.challenge_sessions[tracking_id] = AdvancedLivenessSession(time_limit_per_step=6.0)
+                            self.challenge_sessions[tracking_id] = SingleTaskLivenessSession(tracking_id=tracking_id, time_limit=8.0)
 
                         session_obj = self.challenge_sessions[tracking_id]
-                        eval_res = session_obj.evaluate_frame(frame, face_loc, rgb_small_frame)
+                        eval_res = session_obj.evaluate_frame(frame, face_loc, rgb_frame)
                         c_status = eval_res["status"]
                         c_prompt = eval_res["prompt"]
 
@@ -136,12 +135,11 @@ class CameraStreamManager:
                                 status_text = "ALERT: Screen Replay Attack Detected!"
                                 attempt_result = "liveness_fail_screen"
                             else:
-                                status_text = "Liveness Challenge Failed (Timeout)"
+                                status_text = f"{matched_name} | Task Failed (Timeout)"
                                 attempt_result = "liveness_fail_timeout"
                             is_live = False
 
-                            # Reset failed session after 3 seconds so user can retry
-                            if (now_time - session_obj.stage_start_time) > 3.0:
+                            if (now_time - session_obj.start_time) > 3.0:
                                 del self.challenge_sessions[tracking_id]
 
                     # Lookup Student Record if Matched
@@ -151,7 +149,7 @@ class CameraStreamManager:
                         if student_rec:
                             student_id = student_rec["id"]
 
-                    # Log Attendance if Session Active + Matched + All Liveness Stages Passed
+                    # Log Attendance STRICTLY for the individual student who passed their unique task
                     if matched_name and is_live and active_session and student_id:
                         database.log_attendance(student_id, session_id)
 
@@ -168,17 +166,17 @@ class CameraStreamManager:
                         )
                         self.last_attempt_log_time[tracking_id] = now_time
 
-                    # Scale face bounding box back up to 100% frame size
-                    top, right, bottom, left = [coord * 4 for coord in face_loc]
+                    # Full unscaled resolution bounding box coordinates
+                    top, right, bottom, left = face_loc
 
                     # Draw Bounding Box & Label Overlay
-                    cv2.rectangle(frame, (left, top), (right, bottom), box_color, 2)
+                    cv2.rectangle(frame, (left, top), (right, bottom), box_color, 3)
 
                     # Draw text banner
-                    (tw, th), _ = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_DUPLEX, 0.55, 1)
-                    cv2.rectangle(frame, (left, bottom - 30), (left + tw + 10, bottom), box_color, cv2.FILLED)
-                    cv2.putText(frame, status_text, (left + 5, bottom - 8),
-                                cv2.FONT_HERSHEY_DUPLEX, 0.55, (0, 0, 0) if box_color == (0, 255, 255) else (255, 255, 255), 1)
+                    (tw, th), _ = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_DUPLEX, 0.65, 2)
+                    cv2.rectangle(frame, (left, bottom - 38), (left + tw + 14, bottom), box_color, cv2.FILLED)
+                    cv2.putText(frame, status_text, (left + 7, bottom - 10),
+                                cv2.FONT_HERSHEY_DUPLEX, 0.65, (0, 0, 0) if box_color == (0, 255, 255) else (255, 255, 255), 2)
 
                 # Draw Active Session Banner on Video Feed
                 banner_text = f"ACTIVE SESSION: {active_session['class_name']}"
