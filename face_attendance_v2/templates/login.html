@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Face Attendance System</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="login-box">
+    <h2 style="text-align: center; margin-bottom: 0.5rem;">Face Attendance System</h2>
+    <p style="text-align: center; color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;">
+      v2.0 Anti-Proxy Web Platform
+    </p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="tabs">
+      <div class="tab active" id="tab-admin" onclick="switchTab('admin')">Admin / Teacher</div>
+      <div class="tab" id="tab-student" onclick="switchTab('student')">Student</div>
+    </div>
+
+    <!-- Admin Form -->
+    <form id="admin-form" action="{{ url_for('login') }}" method="POST">
+      <input type="hidden" name="login_type" value="admin">
+      <div class="form-group">
+        <label for="username">Admin Username</label>
+        <input type="text" id="username" name="username" placeholder="e.g. admin" required>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="••••••••" required>
+      </div>
+      <button type="submit" style="width: 100%;">Log In as Admin</button>
+    </form>
+
+    <!-- Student Form -->
+    <form id="student-form" action="{{ url_for('login') }}" method="POST" style="display: none;">
+      <input type="hidden" name="login_type" value="student">
+      <div class="form-group">
+        <label for="roll_no">Student Roll Number</label>
+        <input type="text" id="roll_no" name="roll_no" placeholder="e.g. CS2026_01" required>
+      </div>
+      <button type="submit" class="btn-secondary" style="width: 100%;">View Student Records</button>
+    </form>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -37,8 +37,11 @@ ENV/
 *.swo
 .DS_Store
 
-# Datasets and Generated Encodings / Logs
+# Datasets and Generated Encodings / Logs / Databases
 dataset/
 *.pickle
 *.csv
+*.db
+*.dat
 !dataset/.gitkeep
+

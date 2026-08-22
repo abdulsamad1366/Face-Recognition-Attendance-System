@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance Records - Face Attendance</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="{{ url_for('admin_dashboard') }}" class="brand">📸 Face Attendance Admin</a>
+    <div class="nav-links">
+      <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('session_control') }}">Sessions</a>
+      <a href="{{ url_for('live_feed') }}">Live Feed</a>
+      <a href="{{ url_for('register_student') }}">Register Student</a>
+      <a href="{{ url_for('view_attendance') }}" class="active">Attendance Records</a>
+      <a href="{{ url_for('attempt_log') }}">Audit Log</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <h2>Attendance Log Table</h2>
+      <a href="{{ url_for('export_csv', session_id=selected_session) }}" class="btn btn-success">📥 Export CSV</a>
+    </div>
+
+    <!-- Session Filter Form -->
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+      <form action="{{ url_for('view_attendance') }}" method="GET" style="display: flex; gap: 1rem; align-items: center;">
+        <label for="session_id" style="margin: 0; white-space: nowrap;">Filter by Session:</label>
+        <select name="session_id" id="session_id" onchange="this.form.submit()">
+          <option value="">All Sessions</option>
+          {% for s in sessions %}
+            <option value="{{ s['id'] }}" {% if selected_session == s['id'] %}selected{% endif %}>
+              #{{ s['id'] }} - {{ s['class_name'] }} ({{ s['start_time'] }})
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+
+    <!-- Attendance Table -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student Name</th>
+            <th>Roll Number</th>
+            <th>Section</th>
+            <th>Class Session</th>
+            <th>Date</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in records %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td><strong>{{ r['student_name'] }}</strong></td>
+              <td>{{ r['roll_no'] }}</td>
+              <td>{{ r['section'] }}</td>
+              <td>{{ r['class_name'] }}</td>
+              <td>{{ r['date'] }}</td>
+              <td>{{ r['time'] }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" style="text-align: center; color: var(--text-muted);">No attendance records found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

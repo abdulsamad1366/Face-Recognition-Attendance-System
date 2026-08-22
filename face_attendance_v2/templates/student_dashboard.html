@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Dashboard - Face Attendance</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <span class="brand">🎓 Student Portal — {{ student_name }}</span>
+    <div class="nav-links">
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <div>
+        <h2>Welcome, {{ student_name }}</h2>
+        <p style="color: var(--text-muted);">Roll Number: <strong>{{ roll_no }}</strong></p>
+      </div>
+      <span class="badge badge-info" style="font-size: 1rem; padding: 0.5rem 1rem;">
+        Read-Only Mode
+      </span>
+    </div>
+
+    <!-- Attendance Percentage Stat Cards -->
+    <div class="stats-grid">
+      <div class="card">
+        <div class="card-title">Attendance Percentage</div>
+        <div class="card-value" style="color: {% if percentage >= 75 %}var(--success-color){% else %}var(--danger-color){% endif %};">
+          {{ percentage }}%
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Attended Sessions</div>
+        <div class="card-value">{{ present_count }}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Total Class Sessions</div>
+        <div class="card-value">{{ total_sessions }}</div>
+      </div>
+    </div>
+
+    <!-- Personal Attendance History Table -->
+    <h3>Personal Attendance History</h3>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Class Session</th>
+            <th>Session Start Time</th>
+            <th>Attendance Date</th>
+            <th>Marked Time</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in records %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td><strong>{{ r['class_name'] }}</strong></td>
+              <td>{{ r['session_start'] }}</td>
+              <td>{{ r['date'] }}</td>
+              <td>{{ r['time'] }}</td>
+              <td><span class="badge badge-success">Present</span></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-muted);">No attendance records logged for your roll number.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

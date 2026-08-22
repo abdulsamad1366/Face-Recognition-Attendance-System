@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register Student - Face Attendance</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="{{ url_for('admin_dashboard') }}" class="brand">📸 Face Attendance Admin</a>
+    <div class="nav-links">
+      <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('session_control') }}">Sessions</a>
+      <a href="{{ url_for('live_feed') }}">Live Feed</a>
+      <a href="{{ url_for('register_student') }}" class="active">Register Student</a>
+      <a href="{{ url_for('view_attendance') }}">Attendance Records</a>
+      <a href="{{ url_for('attempt_log') }}">Audit Log</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <h2>Register New Student</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+      Add a student's profile and capture face photos for dataset encoding.
+    </p>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+      <!-- Registration Form -->
+      <div class="card">
+        <h3>Student Details</h3>
+        <form action="{{ url_for('register_student') }}" method="POST" enctype="multipart/form-data" style="margin-top: 1rem;">
+          <div class="form-group">
+            <label for="name">Full Name</label>
+            <input type="text" id="name" name="name" placeholder="e.g. John Doe" required>
+          </div>
+          <div class="form-group">
+            <label for="roll_no">Roll Number / Student ID</label>
+            <input type="text" id="roll_no" name="roll_no" placeholder="e.g. CS2026_01" required>
+          </div>
+          <div class="form-group">
+            <label for="section">Section</label>
+            <input type="text" id="section" name="section" value="A">
+          </div>
+
+          <div class="form-group">
+            <label>Option A: Upload Face Image Files</label>
+            <input type="file" name="image_files" multiple accept="image/*">
+          </div>
+
+          <div id="snapshots-container"></div>
+
+          <button type="submit" class="btn-success" style="width: 100%; margin-top: 1rem;">
+            Save Student & Generate Encodings
+          </button>
+        </form>
+      </div>
+
+      <!-- Browser Camera Capture Widget -->
+      <div class="card">
+        <h3>Option B: Capture Photos via Browser Webcam</h3>
+        <div style="margin: 1rem 0; text-align: center;">
+          <video id="webcam-video" style="width: 100%; height: 240px; background: #000; border-radius: 8px;" autoplay muted playsinline></video>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+          <button type="button" onclick="startWebcam()" class="btn-secondary" style="flex: 1;">Start Webcam</button>
+          <button type="button" id="capture-btn" onclick="captureSnapshot()" disabled style="flex: 1;">
+            📸 Take Photo (<span id="snapshot-count">0</span>)
+          </button>
+        </div>
+
+        <h4>Captured Photo Thumbnails:</h4>
+        <div id="snapshot-gallery" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

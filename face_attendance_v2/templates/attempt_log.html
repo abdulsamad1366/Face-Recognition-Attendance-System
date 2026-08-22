@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audit Attempt Log - Face Attendance</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="{{ url_for('admin_dashboard') }}" class="brand">📸 Face Attendance Admin</a>
+    <div class="nav-links">
+      <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('session_control') }}">Sessions</a>
+      <a href="{{ url_for('live_feed') }}">Live Feed</a>
+      <a href="{{ url_for('register_student') }}">Register Student</a>
+      <a href="{{ url_for('view_attendance') }}">Attendance Records</a>
+      <a href="{{ url_for('attempt_log') }}" class="active">Audit Log</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h2>Layer 3 Security — Audit Attempt Log</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+      Full audit trail recording every frame recognition event (Matched, Unknown, and Liveness Spoof Failures) with saved snapshot evidence.
+    </p>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Timestamp</th>
+            <th>Snapshot Evidence</th>
+            <th>Security Result</th>
+            <th>Identified Student / Roll No</th>
+            <th>Class Session</th>
+            <th>Vector Distance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for att in attempts %}
+            <tr>
+              <td>#{{ att['id'] }}</td>
+              <td>{{ att['timestamp'] }}</td>
+              <td>
+                {% if att['snapshot_path'] %}
+                  <a href="{{ url_for('static', filename=att['snapshot_path']) }}" target="_blank">
+                    <img src="{{ url_for('static', filename=att['snapshot_path']) }}" class="thumbnail-img" alt="Snapshot">
+                  </a>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>
+                {% if att['result'] == 'matched' %}
+                  <span class="badge badge-success">Matched & Verified</span>
+                {% elif att['result'] == 'liveness_fail' %}
+                  <span class="badge badge-warning">Liveness Fail (No Blink)</span>
+                {% else %}
+                  <span class="badge badge-danger">Unknown Face</span>
+                {% endif %}
+              </td>
+              <td>{{ att['student_name'] or att['roll_no'] or 'Unknown' }}</td>
+              <td>{{ att['class_name'] or 'Outside Session' }}</td>
+              <td>{{ "%.3f"|format(att['distance']) if att['distance'] else '-' }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" style="text-align: center; color: var(--text-muted);">No attempts logged in database yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

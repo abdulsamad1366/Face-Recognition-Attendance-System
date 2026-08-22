@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Video Feed - Face Attendance</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="{{ url_for('admin_dashboard') }}" class="brand">📸 Face Attendance Admin</a>
+    <div class="nav-links">
+      <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('session_control') }}">Sessions</a>
+      <a href="{{ url_for('live_feed') }}" class="active">Live Feed</a>
+      <a href="{{ url_for('register_student') }}">Register Student</a>
+      <a href="{{ url_for('view_attendance') }}">Attendance Records</a>
+      <a href="{{ url_for('attempt_log') }}">Audit Log</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          {% if active_session %}
+            <span class="badge badge-success" style="font-size: 0.95rem;">🟢 Active Session: {{ active_session['class_name'] }}</span>
+          {% else %}
+            <span class="badge badge-warning" style="font-size: 0.95rem;">🟡 No Active Session (Logging Paused)</span>
+          {% endif %}
+        </div>
+        <div>
+          {% if active_session %}
+            <form action="{{ url_for('session_control') }}" method="POST" style="display: inline;">
+              <input type="hidden" name="action" value="stop">
+              <button type="submit" class="btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Stop Session</button>
+            </form>
+          {% else %}
+            <form action="{{ url_for('session_control') }}" method="POST" style="display: inline-flex; gap: 0.5rem;">
+              <input type="hidden" name="action" value="start">
+              <input type="text" name="class_name" placeholder="Class Name (e.g. CS301)" required style="padding: 0.4rem; font-size: 0.85rem;">
+              <button type="submit" class="btn-success" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Start Session</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Indicator Guide -->
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+      <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+        <div>🟩 <strong style="color: #166534;">Green Box</strong>: Recognized & Liveness Verified (Attendance Marked)</div>
+        <div>🟨 <strong style="color: #92400e;">Yellow Box</strong>: Verifying Liveness ("Please Blink")</div>
+        <div>🟥 <strong style="color: #991b1b;">Red Box</strong>: Unknown Face</div>
+      </div>
+    </div>
+
+    <!-- Embedded MJPEG Stream -->
+    <div class="video-frame-box">
+      <img src="{{ url_for('video_feed') }}" alt="Live Camera Video Stream">
+    </div>
+  </div>
+</body>
+</html>

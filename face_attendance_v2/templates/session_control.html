@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Session Control - Face Attendance</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="{{ url_for('admin_dashboard') }}" class="brand">📸 Face Attendance Admin</a>
+    <div class="nav-links">
+      <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('session_control') }}" class="active">Sessions</a>
+      <a href="{{ url_for('live_feed') }}">Live Feed</a>
+      <a href="{{ url_for('register_student') }}">Register Student</a>
+      <a href="{{ url_for('view_attendance') }}">Attendance Records</a>
+      <a href="{{ url_for('attempt_log') }}">Audit Log</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <h2>Class Session Control</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+      Layer 1 Security: Attendance is only logged to the database while a class session is ACTIVE.
+    </p>
+
+    <!-- Active Session Banner / Control Card -->
+    <div class="card" style="margin-bottom: 2rem;">
+      <h3>Current Session Status</h3>
+      {% if active_session %}
+        <div style="margin: 1rem 0; padding: 1rem; background: #dcfce7; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+          <div>
+            <h4 style="color: #166534;">🟢 ACTIVE SESSION: {{ active_session['class_name'] }}</h4>
+            <p style="font-size: 0.9rem; color: #15803d; margin-top: 0.25rem;">
+              Started at: {{ active_session['start_time'] }}
+            </p>
+          </div>
+          <form action="{{ url_for('session_control') }}" method="POST">
+            <input type="hidden" name="action" value="stop">
+            <button type="submit" class="btn-danger">Stop Active Session</button>
+          </form>
+        </div>
+
+        <div style="margin-top: 1.5rem;">
+          <h4 style="margin-bottom: 0.5rem;">📷 Live Camera Attendance Feed</h4>
+          <div style="display: flex; gap: 1.5rem; margin-bottom: 0.75rem; font-size: 0.85rem;">
+            <span>🟩 <strong>Green</strong>: Attendance Marked</span>
+            <span>🟨 <strong>Yellow</strong>: Blink Required</span>
+            <span>🟥 <strong>Red</strong>: Unknown</span>
+          </div>
+          <div class="video-frame-box">
+            <img src="{{ url_for('video_feed') }}" alt="Live Camera Video Feed">
+          </div>
+        </div>
+      {% else %}
+        <div style="margin: 1rem 0; padding: 1rem; background: #fef3c7; border-radius: 8px;">
+          <h4 style="color: #92400e;">🟡 NO ACTIVE SESSION</h4>
+          <p style="font-size: 0.9rem; color: #b45309; margin-top: 0.25rem;">
+            Camera recognition can run, but attendance records will NOT be saved to DB until a session is started.
+          </p>
+        </div>
+        <form action="{{ url_for('session_control') }}" method="POST" style="max-width: 400px;">
+          <input type="hidden" name="action" value="start">
+          <div class="form-group">
+            <label for="class_name">Class Name / Course Code</label>
+            <input type="text" id="class_name" name="class_name" placeholder="e.g. CS301 Data Structures" required>
+          </div>
+          <button type="submit" class="btn-success">Start New Attendance Session</button>
+        </form>
+      {% endif %}
+    </div>
+
+    <!-- Past Sessions History -->
+    <h3>Session History</h3>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Class Name</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Status</th>
+            <th>Present Students</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sess in sessions %}
+            <tr>
+              <td>#{{ sess['id'] }}</td>
+              <td><strong>{{ sess['class_name'] }}</strong></td>
+              <td>{{ sess['start_time'] }}</td>
+              <td>{{ sess['end_time'] or 'Ongoing' }}</td>
+              <td>
+                {% if sess['status'] == 'active' %}
+                  <span class="badge badge-success">Active</span>
+                {% else %}
+                  <span class="badge badge-info">Closed</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('view_attendance', session_id=sess['id']) }}">
+                  {{ sess['attendance_count'] }} Student(s) View
+                </a>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-muted);">No sessions recorded yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

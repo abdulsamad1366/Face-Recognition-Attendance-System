@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Face Attendance System</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="{{ url_for('admin_dashboard') }}" class="brand">📸 Face Attendance Admin</a>
+    <div class="nav-links">
+      <a href="{{ url_for('admin_dashboard') }}" class="active">Dashboard</a>
+      <a href="{{ url_for('session_control') }}">Sessions</a>
+      <a href="{{ url_for('live_feed') }}">Live Feed</a>
+      <a href="{{ url_for('register_student') }}">Register Student</a>
+      <a href="{{ url_for('view_attendance') }}">Attendance Records</a>
+      <a href="{{ url_for('attempt_log') }}">Audit Log</a>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <h2>System Overview</h2>
+      {% if active_session %}
+        <span class="badge badge-success" style="font-size: 0.9rem;">Active Session: {{ active_session['class_name'] }}</span>
+      {% else %}
+        <span class="badge badge-warning" style="font-size: 0.9rem;">No Active Session</span>
+      {% endif %}
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="stats-grid">
+      <div class="card">
+        <div class="card-title">Registered Students</div>
+        <div class="card-value">{{ stats['total_students'] }}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Total Class Sessions</div>
+        <div class="card-value">{{ stats['total_sessions'] }}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Today's Attendance</div>
+        <div class="card-value">{{ stats['today_attendance'] }}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Liveness Spoof Alerts</div>
+        <div class="card-value" style="color: var(--warning-color);">{{ stats['liveness_alerts'] }}</div>
+      </div>
+    </div>
+
+    <!-- Quick Shortcuts -->
+    <div class="card" style="margin-bottom: 2rem;">
+      <h3 style="margin-bottom: 1rem;">Quick Controls</h3>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a href="{{ url_for('session_control') }}" class="btn">Manage Sessions</a>
+        <a href="{{ url_for('live_feed') }}" class="btn btn-success">View Live Video Camera</a>
+        <a href="{{ url_for('register_student') }}" class="btn btn-secondary">+ Register New Student</a>
+        <a href="{{ url_for('attempt_log') }}" class="btn btn-secondary">Review Audit Attempt Log</a>
+      </div>
+    </div>
+
+    <!-- Recent Recognition Attempts Table -->
+    <h3>Recent Recognition Audit Log</h3>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Snapshot</th>
+            <th>Result</th>
+            <th>Student</th>
+            <th>Distance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for att in attempts %}
+            <tr>
+              <td>{{ att['timestamp'] }}</td>
+              <td>
+                {% if att['snapshot_path'] %}
+                  <img src="{{ url_for('static', filename=att['snapshot_path']) }}" class="thumbnail-img" alt="Snapshot">
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>
+                {% if att['result'] == 'matched' %}
+                  <span class="badge badge-success">Matched</span>
+                {% elif att['result'] == 'liveness_fail' %}
+                  <span class="badge badge-warning">Liveness Fail</span>
+                {% else %}
+                  <span class="badge badge-danger">Unknown</span>
+                {% endif %}
+              </td>
+              <td>{{ att['student_name'] or att['roll_no'] or 'Unknown' }}</td>
+              <td>{{ "%.3f"|format(att['distance']) if att['distance'] else '-' }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted);">No recent attempts logged yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>
