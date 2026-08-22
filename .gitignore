@@ -39,9 +39,11 @@ ENV/
 
 # Datasets and Generated Encodings / Logs / Databases
 dataset/
+snapshots/
 *.pickle
 *.csv
 *.db
 *.dat
 !dataset/.gitkeep
+
 

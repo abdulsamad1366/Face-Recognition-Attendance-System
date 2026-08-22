@@ -244,17 +244,22 @@ button:hover, .btn:hover {
 
 /* Video Stream Frame */
 .video-frame-box {
-  background: #000;
+  background: #0f172a;
   border-radius: 12px;
   overflow: hidden;
   text-align: center;
   margin-top: 1rem;
   box-shadow: var(--shadow);
+  min-height: 480px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid var(--border-color);
 }
 
 .video-frame-box img {
   max-width: 100%;
-  height: auto;
+  max-height: 540px;
   display: block;
   margin: 0 auto;
 }
