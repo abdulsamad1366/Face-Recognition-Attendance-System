@@ -8,6 +8,7 @@ def main():
     print("               Add Student Faces                  ")
     print("==================================================")
 
+
     # Step 1: Ask the user to enter student name or ID
     student_name = input("Enter Student Name/ID: ").strip()
     
